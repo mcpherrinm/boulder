@@ -10,10 +10,10 @@ command -v minica >/dev/null 2>&1 || {
 }
 
 for SERVICE in admin-revoker expiration-mailer ocsp-updater ocsp-responder \
-  orphan-finder wfe akamai-purger nonce bad-key-revoker crl-updater health-checker; do
-  minica -domains "${SERVICE}.boulder"
+  orphan-finder wfe akamai-purger nonce bad-key-revoker crl-updater crl-storer health-checker; do
+  minica -domains "${SERVICE}.boulder" -backdate-cert "30753h"
 done
 
 for SERVICE in publisher ra ca sa va ; do
-  minica -domains "${SERVICE}.boulder,${SERVICE}1.boulder,${SERVICE}2.boulder"
+  minica -domains "${SERVICE}.boulder,${SERVICE}1.boulder,${SERVICE}2.boulder" -backdate-cert "30753h"
 done
