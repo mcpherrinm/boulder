@@ -3,6 +3,8 @@ package crl
 import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/zmap/zlint/v3"
@@ -38,6 +40,7 @@ func init() {
 		"noCriticalReasons":              noCriticalReasons,
 		"noCertificateHolds":             noCertificateHolds,
 		"hasMozReasonCodes":              hasMozReasonCodes,
+		"hasValidTimestamps":             hasValidTimestamps,
 	}
 }
 
@@ -368,4 +371,85 @@ func hasMozReasonCodes(crl *crl_x509.RevocationList) *lint.LintResult {
 		}
 	}
 	return &lint.LintResult{Status: lint.Pass}
+}
+
+func hasValidTimestamps(crl *crl_x509.RevocationList) *lint.LintResult {
+	tbs := cryptobyte.String(crl.RawTBSRevocationList)
+	fmt.Printf("\nl0 \n%s\n", tbs)
+
+	if !tbs.SkipASN1(cryptobyte_asn1.SEQUENCE) {
+		fmt.Println("no unwrap")
+	}
+	fmt.Printf("\nl1 \n%s\n", tbs)
+
+	if !tbs.SkipOptionalASN1(cryptobyte_asn1.INTEGER) { // version
+		fmt.Println("no version")
+	}
+	fmt.Printf("\nl2 \n%s\n", tbs)
+
+	if !tbs.SkipASN1(cryptobyte_asn1.SEQUENCE) { // signatureAlgorithm
+		fmt.Println("no signatureAlgorithm")
+	}
+	fmt.Printf("\nl3 \n%s\n", tbs)
+
+	if !tbs.SkipASN1(cryptobyte_asn1.SEQUENCE) { // issuer
+		fmt.Println("no issuer")
+	}
+	fmt.Printf("\nl4 \n%s\n", tbs)
+
+	if tbs.PeekASN1Tag(cryptobyte_asn1.GeneralizedTime) || tbs.PeekASN1Tag(cryptobyte_asn1.UTCTime) {
+		var thisUpdate time.Time
+		thisUpdate, err := lintTimestamp(&tbs) // thisUpdate
+		if err != nil {
+			fmt.Println("ERROR thisUpdate", err)
+		}
+		fmt.Println("thisUpdate", thisUpdate)
+	}
+
+	if tbs.PeekASN1Tag(cryptobyte_asn1.GeneralizedTime) || tbs.PeekASN1Tag(cryptobyte_asn1.UTCTime) {
+		var nextUpdate time.Time
+		_, err := lintTimestamp(&tbs) // nextUpdate
+		if err != nil {
+			fmt.Println("ERROR nextUpdate", err)
+		}
+		fmt.Println("nextUpdate", nextUpdate)
+	}
+
+	if tbs.PeekASN1Tag(cryptobyte_asn1.SEQUENCE) {
+		var revokedSeq cryptobyte.String
+		tbs.ReadASN1(&revokedSeq, cryptobyte_asn1.SEQUENCE) // revokedCertificates
+		fmt.Printf("\n> \n%s\n", revokedSeq)
+		for !revokedSeq.Empty() {
+			var certSeq cryptobyte.String
+			revokedSeq.ReadASN1Element(&certSeq, cryptobyte_asn1.SEQUENCE)
+			fmt.Printf("\n>> \n%s\n", certSeq)
+			certSeq.ReadASN1(&certSeq, cryptobyte_asn1.SEQUENCE)
+			certSeq.SkipASN1(cryptobyte_asn1.INTEGER) // userCertificate (serial number)
+			_, err := lintTimestamp(&certSeq)         // revocationDate
+			if err != nil {
+				fmt.Println("ERROR revocationDate", err)
+			}
+		}
+	}
+	return nil
+}
+
+func lintTimestamp(der *cryptobyte.String) (time.Time, error) {
+	fmt.Printf("der: \n%s\n", *der)
+	var t time.Time
+	switch {
+	case der.PeekASN1Tag(cryptobyte_asn1.UTCTime):
+		fmt.Println("UTCTime")
+		if !der.ReadASN1UTCTime(&t) {
+			return t, errors.New("x509: malformed UTCTime")
+		}
+	case der.PeekASN1Tag(cryptobyte_asn1.GeneralizedTime):
+		fmt.Println("GeneralizedTime")
+		if !der.ReadASN1GeneralizedTime(&t) {
+			return t, errors.New("x509: malformed GeneralizedTime")
+		}
+	default:
+		return t, errors.New("x509: unsupported time format")
+	}
+	return t, nil
 }

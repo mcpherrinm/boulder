@@ -148,6 +148,7 @@ func ParseRevocationList(der []byte) (*RevocationList, error) {
 	if !tbs.ReadASN1(&tbs, cryptobyte_asn1.SEQUENCE) {
 		return nil, errors.New("x509: malformed tbs crl")
 	}
+	fmt.Printf("\np0 \n%s\n", tbs)
 
 	var version int
 	if !tbs.PeekASN1Tag(cryptobyte_asn1.INTEGER) {
@@ -156,6 +157,7 @@ func ParseRevocationList(der []byte) (*RevocationList, error) {
 	if !tbs.ReadASN1Integer(&version) {
 		return nil, errors.New("x509: malformed crl")
 	}
+	fmt.Printf("\np1 \n%s\n", tbs)
 	if version != x509v2Version {
 		return nil, fmt.Errorf("x509: unsupported crl version: %d", version)
 	}
@@ -164,6 +166,7 @@ func ParseRevocationList(der []byte) (*RevocationList, error) {
 	if !tbs.ReadASN1(&sigAISeq, cryptobyte_asn1.SEQUENCE) {
 		return nil, errors.New("x509: malformed signature algorithm identifier")
 	}
+	fmt.Printf("\np2 \n%s\n", tbs)
 	// Before parsing the inner algorithm identifier, extract
 	// the outer algorithm identifier and make sure that they
 	// match.
@@ -190,6 +193,7 @@ func ParseRevocationList(der []byte) (*RevocationList, error) {
 	if !tbs.ReadASN1Element(&issuerSeq, cryptobyte_asn1.SEQUENCE) {
 		return nil, errors.New("x509: malformed issuer")
 	}
+	fmt.Printf("\np3 \n%s\n", tbs)
 	rl.RawIssuer = issuerSeq
 	issuerRDNs, err := parseName(issuerSeq)
 	if err != nil {

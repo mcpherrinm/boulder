@@ -251,3 +251,14 @@ func TestHasMozReasonCodes(t *testing.T) {
 	test.AssertEquals(t, res.Status, lint.Error)
 	test.AssertContains(t, res.Details, "MUST NOT include reasonCodes other than")
 }
+
+func TestHasValidTimestamps(t *testing.T) {
+	crl := loadPEMCRL(t, "testdata/good.pem")
+	res := hasValidTimestamps(crl)
+	test.AssertEquals(t, res.Status, lint.Pass)
+
+	// crl = loadPEMCRL(t, "testdata/critical_reason.pem")
+	// res = hasValidTimestamps(crl)
+	// test.AssertEquals(t, res.Status, lint.Error)
+	// test.AssertContains(t, res.Details, "reasonCodes MUST NOT be critical")
+}
