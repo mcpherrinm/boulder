@@ -3,7 +3,6 @@ package crl
 import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"errors"
 	"fmt"
 	"time"
 
@@ -374,82 +373,76 @@ func hasMozReasonCodes(crl *crl_x509.RevocationList) *lint.LintResult {
 }
 
 func hasValidTimestamps(crl *crl_x509.RevocationList) *lint.LintResult {
-	tbs := cryptobyte.String(crl.RawTBSRevocationList)
-	fmt.Printf("\nl0 \n%s\n", tbs)
+	input := cryptobyte.String(crl.RawTBSRevocationList)
+	parseFail := lint.LintResult{
+		Status:  lint.Error,
+		Details: "Failed to re-parse CRL during linting",
+	}
 
+	fmt.Println("reading tbsCertList")
+	var tbs cryptobyte.String
+	if !input.ReadASN1(&tbs, cryptobyte_asn1.SEQUENCE) {
+		return &parseFail
+	}
+
+	fmt.Println("skipping version")
+	if !tbs.SkipOptionalASN1(cryptobyte_asn1.INTEGER) {
+		return &parseFail
+	}
+
+	fmt.Println("skipping signatureAlgorithm")
 	if !tbs.SkipASN1(cryptobyte_asn1.SEQUENCE) {
-		fmt.Println("no unwrap")
-	}
-	fmt.Printf("\nl1 \n%s\n", tbs)
-
-	if !tbs.SkipOptionalASN1(cryptobyte_asn1.INTEGER) { // version
-		fmt.Println("no version")
-	}
-	fmt.Printf("\nl2 \n%s\n", tbs)
-
-	if !tbs.SkipASN1(cryptobyte_asn1.SEQUENCE) { // signatureAlgorithm
-		fmt.Println("no signatureAlgorithm")
-	}
-	fmt.Printf("\nl3 \n%s\n", tbs)
-
-	if !tbs.SkipASN1(cryptobyte_asn1.SEQUENCE) { // issuer
-		fmt.Println("no issuer")
-	}
-	fmt.Printf("\nl4 \n%s\n", tbs)
-
-	if tbs.PeekASN1Tag(cryptobyte_asn1.GeneralizedTime) || tbs.PeekASN1Tag(cryptobyte_asn1.UTCTime) {
-		var thisUpdate time.Time
-		thisUpdate, err := lintTimestamp(&tbs) // thisUpdate
-		if err != nil {
-			fmt.Println("ERROR thisUpdate", err)
-		}
-		fmt.Println("thisUpdate", thisUpdate)
+		return &parseFail
 	}
 
-	if tbs.PeekASN1Tag(cryptobyte_asn1.GeneralizedTime) || tbs.PeekASN1Tag(cryptobyte_asn1.UTCTime) {
-		var nextUpdate time.Time
-		_, err := lintTimestamp(&tbs) // nextUpdate
-		if err != nil {
-			fmt.Println("ERROR nextUpdate", err)
-		}
-		fmt.Println("nextUpdate", nextUpdate)
+	fmt.Println("skipping issuer")
+	if !tbs.SkipASN1(cryptobyte_asn1.SEQUENCE) {
+		return &parseFail
 	}
 
-	if tbs.PeekASN1Tag(cryptobyte_asn1.SEQUENCE) {
-		var revokedSeq cryptobyte.String
-		tbs.ReadASN1(&revokedSeq, cryptobyte_asn1.SEQUENCE) // revokedCertificates
-		fmt.Printf("\n> \n%s\n", revokedSeq)
-		for !revokedSeq.Empty() {
-			var certSeq cryptobyte.String
-			revokedSeq.ReadASN1Element(&certSeq, cryptobyte_asn1.SEQUENCE)
-			fmt.Printf("\n>> \n%s\n", certSeq)
-			certSeq.ReadASN1(&certSeq, cryptobyte_asn1.SEQUENCE)
-			certSeq.SkipASN1(cryptobyte_asn1.INTEGER) // userCertificate (serial number)
-			_, err := lintTimestamp(&certSeq)         // revocationDate
-			if err != nil {
-				fmt.Println("ERROR revocationDate", err)
-			}
-		}
+	fmt.Println("checking thisUpdate")
+	var thisUpdate cryptobyte.String
+	var thisUpdateTag cryptobyte_asn1.Tag
+	if !tbs.ReadAnyASN1Element(&thisUpdate, &thisUpdateTag) {
+		return &parseFail
 	}
+	res := lintTimestamp(thisUpdate, thisUpdateTag)
+	if res != nil {
+		return res
+	}
+
+	// TODO: check nextUpdate
+	// TODO: check all of the individual revocationDates
 	return nil
 }
 
-func lintTimestamp(der *cryptobyte.String) (time.Time, error) {
-	fmt.Printf("der: \n%s\n", *der)
+func lintTimestamp(der cryptobyte.String, tag cryptobyte_asn1.Tag) *lint.LintResult {
 	var t time.Time
-	switch {
-	case der.PeekASN1Tag(cryptobyte_asn1.UTCTime):
-		fmt.Println("UTCTime")
+	switch tag {
+	case cryptobyte_asn1.UTCTime:
+		// TODO: Check that it has seconds by looking at the length before parsing
 		if !der.ReadASN1UTCTime(&t) {
-			return t, errors.New("x509: malformed UTCTime")
+			return &lint.LintResult{
+				Status:  lint.Error,
+				Details: "Failed to parse UTCTime timestamp",
+			}
 		}
-	case der.PeekASN1Tag(cryptobyte_asn1.GeneralizedTime):
-		fmt.Println("GeneralizedTime")
+		// TODO: Check that it is in UTC by looking at the location after parsing
+	case cryptobyte_asn1.GeneralizedTime:
+		// TODO: Check that it has seconds by looking at the length before parsing
 		if !der.ReadASN1GeneralizedTime(&t) {
-			return t, errors.New("x509: malformed GeneralizedTime")
+			return &lint.LintResult{
+				Status:  lint.Error,
+				Details: "Failed to parse GeneralizedTime timestamp",
+			}
 		}
+		// TODO: Check that it is in UTC by looking at the location after parsing
+		// TODO: Check that it is not before 2050
 	default:
-		return t, errors.New("x509: unsupported time format")
+		return &lint.LintResult{
+			Status:  lint.Error,
+			Details: "Timestamp is neither UTCTime nor GeneralizedTime",
+		}
 	}
-	return t, nil
+	return nil
 }
