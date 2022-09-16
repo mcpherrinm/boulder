@@ -75,10 +75,5 @@
   "syslog": {
     "stdoutlevel": 4,
     "sysloglevel": 6
-  },
-  "beeline": {
-      "mute": true,
-      "serviceName": "Test",
-      "writeKey": {"passwordFile": "test/secrets/honeycomb_fake_password"}
   }
 }
