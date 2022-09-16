@@ -7,12 +7,14 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/honeycombio/beeline-go"
 	blog "github.com/letsencrypt/boulder/log"
 )
 
@@ -89,14 +91,16 @@ type wfeHandler interface {
 }
 
 type TopHandler struct {
-	wfe wfeHandler
-	log blog.Logger
+	wfe    wfeHandler
+	log    blog.Logger
+	tracer trace.Tracer
 }
 
 func NewTopHandler(log blog.Logger, wfe wfeHandler) *TopHandler {
 	return &TopHandler{
-		wfe: wfe,
-		log: log,
+		wfe:    wfe,
+		log:    log,
+		tracer: otel.Tracer("github.com/letsencrypt/boulder/wfe"),
 	}
 }
 
@@ -128,11 +132,13 @@ func (th *TopHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Origin:    r.Header.Get("Origin"),
 		Extra:     make(map[string]interface{}),
 	}
-	ctx := r.Context()
-	beeline.AddFieldToTrace(ctx, "real_ip", logEvent.RealIP)
-	beeline.AddFieldToTrace(ctx, "method", logEvent.Method)
-	beeline.AddFieldToTrace(ctx, "user_agent", logEvent.UserAgent)
-	beeline.AddFieldToTrace(ctx, "origin", logEvent.Origin)
+
+	_, span := th.tracer.Start(r.Context(), "TopHandler")
+	span.SetAttributes(
+		attribute.String("real_ip", logEvent.RealIP),
+		attribute.String("method", logEvent.Method),
+		attribute.String("user_agent", logEvent.UserAgent),
+		attribute.String("origin", logEvent.Origin))
 
 	// Some clients will send a HTTP Host header that includes the default port
 	// for the scheme that they are using. Previously when we were fronted by
@@ -154,17 +160,20 @@ func (th *TopHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	begin := time.Now()
 	rwws := &responseWriterWithStatus{w, 0}
 	defer func() {
-		beeline.AddFieldToTrace(ctx, "internal_errors", logEvent.InternalErrors)
 		logEvent.Code = rwws.code
 		if logEvent.Code == 0 {
 			// If we haven't explicitly set a status code golang will set it
 			// to 200 itself when writing to the wire
 			logEvent.Code = http.StatusOK
 		}
-		beeline.AddFieldToTrace(ctx, "code", logEvent.Code)
 		logEvent.Latency = time.Since(begin).Seconds()
-		beeline.AddFieldToTrace(ctx, "latency", logEvent.Latency)
 		th.logEvent(logEvent)
+
+		span.SetAttributes(
+			attribute.StringSlice("internal_errors", logEvent.InternalErrors),
+			attribute.Int("code", logEvent.Code))
+
+		span.End()
 	}()
 	th.wfe.ServeHTTP(logEvent, rwws, r)
 }
