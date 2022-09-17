@@ -111,8 +111,7 @@ type Config struct {
 		LogSampleRate int
 	}
 
-	Syslog  cmd.SyslogConfig
-	Beeline cmd.BeelineConfig
+	Syslog cmd.SyslogConfig
 }
 
 func main() {

@@ -32,8 +32,7 @@ type Config struct {
 		ParallelismPerRPC int
 	}
 
-	Syslog  cmd.SyslogConfig
-	Beeline cmd.BeelineConfig
+	Syslog cmd.SyslogConfig
 }
 
 func main() {

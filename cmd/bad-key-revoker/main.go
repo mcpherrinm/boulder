@@ -416,8 +416,7 @@ type Config struct {
 		}
 	}
 
-	Syslog  cmd.SyslogConfig
-	Beeline cmd.BeelineConfig
+	Syslog cmd.SyslogConfig
 }
 
 func main() {

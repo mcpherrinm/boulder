@@ -158,8 +158,7 @@ type Config struct {
 		// purged.
 		PurgeRetryBackoff cmd.ConfigDuration
 	}
-	Syslog  cmd.SyslogConfig
-	Beeline cmd.BeelineConfig
+	Syslog cmd.SyslogConfig
 }
 
 // TODO(#6003) remove entirely.

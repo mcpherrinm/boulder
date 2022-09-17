@@ -53,8 +53,7 @@ type Config struct {
 		AccountURIPrefixes []string
 	}
 
-	Syslog  cmd.SyslogConfig
-	Beeline cmd.BeelineConfig
+	Syslog cmd.SyslogConfig
 
 	Common struct {
 		DNSTimeout                string

@@ -22,8 +22,7 @@ type Config struct {
 		MaxUsed     int
 		NoncePrefix string
 
-		Syslog  cmd.SyslogConfig
-		Beeline cmd.BeelineConfig
+		Syslog cmd.SyslogConfig
 	}
 }
 

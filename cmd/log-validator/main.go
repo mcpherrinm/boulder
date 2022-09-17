@@ -132,7 +132,6 @@ type Config struct {
 
 	DebugAddr string
 	Syslog    cmd.SyslogConfig
-	Beeline   cmd.BeelineConfig
 }
 
 func main() {
