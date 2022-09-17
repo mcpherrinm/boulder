@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-redis/redis/extra/redisotel/v8"
 	"github.com/go-redis/redis/v8"
 	"github.com/jmhodges/clock"
 	"github.com/letsencrypt/boulder/cmd"
@@ -125,6 +126,7 @@ func MakeClient(c *RedisConfig, clk clock.Clock, stats prometheus.Registerer) (*
 		IdleTimeout:        c.IdleTimeout.Duration,
 		IdleCheckFrequency: c.IdleCheckFrequency.Duration,
 	})
+	rdb.AddHook(redisotel.NewTracingHook())
 	return rocsp.NewWritingClient(rdb, timeout, clk, stats), nil
 }
 
