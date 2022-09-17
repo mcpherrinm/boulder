@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awsl "github.com/aws/smithy-go/logging"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
@@ -123,6 +124,8 @@ func main() {
 			func(o *s3.Options) { o.UsePathStyle = true },
 		)
 	}
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions)
+
 	s3client := s3.NewFromConfig(awsConfig, s3opts...)
 
 	csi, err := storer.New(issuers, s3client, c.CRLStorer.S3Bucket, scope, logger, clk)
