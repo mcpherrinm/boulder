@@ -408,6 +408,28 @@ type dnsResp struct {
 	err error
 }
 
+// getExtendedDNSError checks for an extra record with RR type OPT
+func getExtendedDNSError(msg *dns.Msg) *dns.EDNS0_EDE {
+	for _, extra := range msg.Extra {
+		// I'm not sure if I need this Rrtype check or if I can just check the cast
+		if extra.Header().Rrtype == dns.TypeOPT {
+			opt, ok := extra.(*dns.OPT)
+			if !ok {
+				continue
+			}
+
+			for _, opt := range opt.Option {
+				ede, ok := opt.(*dns.EDNS0_EDE)
+				if !ok {
+					continue
+				}
+				return ede
+			}
+		}
+	}
+	return nil
+}
+
 // LookupTXT sends a DNS query to find all TXT records associated with
 // the provided hostname which it returns along with the returned
 // DNS authority section.
@@ -419,6 +441,10 @@ func (dnsClient *impl) LookupTXT(ctx context.Context, hostname string) ([]string
 		return nil, &Error{dnsType, hostname, err, -1}
 	}
 	if r.Rcode != dns.RcodeSuccess {
+		edeError := getExtendedDNSError(r)
+		if edeError != nil {
+			return nil, &Error{dnsType, hostname, fmt.Errorf("EDNS: %s", edeError), -1}
+		}
 		return nil, &Error{dnsType, hostname, nil, r.Rcode}
 	}
 
