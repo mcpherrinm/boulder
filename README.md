@@ -39,18 +39,30 @@ Publisher need access to the Internet, which puts them at greater risk of
 compromise. The Registration Authority can live without Internet
 connectivity, but still needs to talk to the Web Front End and Validation
 Authority. The Certificate Authority need only receive instructions from the
-Registration Authority. All components talk to the SA for storage, so most
-lines indicating SA RPCs are not shown here.
+Registration Authority.
 
-```text
-                            CA ---------> Publisher
-                             ^
-                             |
-       Subscriber -> WFE --> RA --> SA --> MariaDB
-                             |               ^
-Subscriber server <- VA <----+               |
-                                             |
-          Browser -------------------> OCSP Responder
+```mermaid
+graph TD
+    subgraph public [Public-facing APIs]
+      wfe[Web Frontend]
+      ocsp[OCSP Responder]
+    end
+    wfe --> nonce
+    wfe --> ra[Registration Authority]
+    wfe --> sa[Storage Authority]
+    ra --> sa
+    ra --> ca[Certification Authority]
+    ca --> sa
+    ca --> hsm[Hardware Security Modules]
+    ra --> va[Validation Authority]
+    va --> rva[Remote<br>Validation Authority]
+    va --> chal[/Subscriber server/]
+    rva --> chal
+    ra --> publisher[Certificate Transparency<br>Publisher]
+    publisher --> logs[/Certificate Transparency Logs/]
+    sa --> db[(MariaDB)]
+    ocsp --> redis[(Redis Cache)]
+    ocsp --> db
 ```
 
 Internally, the logic of the system is based around five types of objects:
